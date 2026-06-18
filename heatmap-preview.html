@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>市場熱力圖</title>
+    <style>
+:root {
+  color-scheme: dark;
+  --bg: #080b10;
+  --panel: #111820;
+  --panel-2: #151d27;
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f3f7fb;
+  --muted: #8b99a8;
+  --gold: #f4c76a;
+  --green: #139f62;
+  --red: #ca3f47;
+  --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 1120px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 20% -10%, rgba(92, 29, 35, 0.32), transparent 34%),
+    radial-gradient(circle at 90% 0%, rgba(20, 88, 58, 0.18), transparent 28%),
+    linear-gradient(145deg, #050609 0%, #0a0d12 50%, #040506 100%);
+  color: var(--text);
+  font-family:
+    Inter, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1540px, calc(100vw - 40px));
+  margin: 0 auto;
+  padding: 28px 0 34px;
+}
+
+.topbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 22px;
+  margin-bottom: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 32px;
+  line-height: 1.15;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 330px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: rgba(17, 24, 32, 0.84);
+  border-radius: 8px;
+}
+
+.search-box span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.search-box input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+}
+
+.range-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 70px);
+  height: 44px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(17, 24, 32, 0.84);
+}
+
+.range-button {
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.range-button.active {
+  color: #101318;
+  background: var(--gold);
+  font-weight: 800;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 1.28fr 1fr;
+  grid-template-rows: 53vh 34vh;
+  gap: 12px;
+  height: calc(100vh - 132px);
+  min-height: 720px;
+}
+
+.market-panel {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(19, 23, 29, 0.98), rgba(6, 8, 11, 0.98));
+  box-shadow: var(--shadow);
+}
+
+.market-panel.featured {
+  grid-row: span 2;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 50px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(11, 13, 16, 0.96), rgba(4, 5, 7, 0.96));
+}
+
+.panel-head h2 {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.panel-head p {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.panel-head strong {
+  font-size: 15px;
+}
+
+.heatmap {
+  position: relative;
+  height: calc(100% - 50px);
+  background: #0a0e13;
+}
+
+.render-error {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  padding: 24px;
+  color: #ff9a9a;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.tile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid rgba(20, 8, 10, 0.44);
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 9px rgba(0, 0, 0, 0.48);
+  cursor: pointer;
+  transition: filter 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.tile::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 38%),
+    radial-gradient(circle at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.18));
+}
+
+.tile > span {
+  position: relative;
+  z-index: 1;
+}
+
+.tile:hover,
+.tile.active {
+  z-index: 5;
+  filter: saturate(1.2) brightness(1.08);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.82), 0 14px 26px rgba(0, 0, 0, 0.32);
+}
+
+.tile.dimmed {
+  opacity: 0.2;
+}
+
+.tile-symbol {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 900;
+  font-size: 1em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile.hero .tile-symbol {
+  font-size: 1.45em;
+  letter-spacing: 0;
+}
+
+.tile-price {
+  display: block;
+  margin-top: 7px;
+  font-weight: 800;
+  font-size: max(12px, 0.36em);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.tile.hero .tile-price {
+  margin-top: 14px;
+  font-size: max(25px, 0.34em);
+}
+
+.tile-change {
+  display: block;
+  margin-top: 4px;
+  font-weight: 900;
+  font-size: max(11px, 0.28em);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.tile.hero .tile-change {
+  margin-top: 10px;
+  font-size: max(18px, 0.2em);
+}
+
+.tile-name {
+  display: block;
+  margin-top: 4px;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: max(10px, 0.22em);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile.hero .tile-name {
+  margin-top: 7px;
+  font-size: max(12px, 0.12em);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.tile-market-note {
+  display: none;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: max(11px, 0.1em);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tile.hero .tile-market-note {
+  display: block;
+}
+
+.tile.compact {
+  padding: 5px;
+}
+
+.tile.compact .tile-symbol {
+  font-size: 0.82em;
+}
+
+.tile.compact .tile-price {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.tile.compact .tile-change,
+.tile.compact .tile-name,
+.tile.compact .tile-market-note {
+  display: none;
+}
+
+.detail-drawer {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 330px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(13, 18, 25, 0.96);
+  box-shadow: var(--shadow);
+  transform: translateY(calc(100% + 36px));
+  transition: transform 220ms ease;
+}
+
+.detail-drawer.open {
+  transform: translateY(0);
+}
+
+.detail-drawer h3 {
+  padding-right: 32px;
+  font-size: 22px;
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+dl {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+}
+
+dt {
+  color: var(--muted);
+}
+
+dd {
+  margin: 0;
+  font-weight: 800;
+  text-align: right;
+}
+
+.positive {
+  color: #68e7a2;
+}
+
+.negative {
+  color: #ff9292;
+}
+
+@media (max-width: 1180px) {
+  body {
+    min-width: 0;
+  }
+
+  .app-shell {
+    width: calc(100vw - 24px);
+    padding-top: 18px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-box,
+  .range-tabs {
+    width: 100%;
+  }
+
+  .range-tabs {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .dashboard {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+  }
+
+  .market-panel,
+  .market-panel.featured {
+    height: 430px;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Market Heatmap</p>
+          <h1>加密貨幣 / 美股 / 台股 / 黃金</h1>
+        </div>
+        <div class="toolbar" aria-label="熱力圖控制列">
+          <label class="search-box" for="searchInput">
+            <span>搜尋</span>
+            <input id="searchInput" type="search" placeholder="BTC、AAPL、台積電..." autocomplete="off" />
+          </label>
+          <div class="range-tabs" role="tablist" aria-label="時間區間">
+            <button class="range-button active" type="button" data-range="day">今日</button>
+            <button class="range-button" type="button" data-range="week">7 日</button>
+            <button class="range-button" type="button" data-range="month">30 日</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="dashboard" aria-label="四市場熱力圖">
+        <article class="market-panel featured" data-market="crypto">
+          <div class="panel-head">
+            <div>
+              <h2>加密貨幣</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="cryptoSummary">--</strong>
+          </div>
+          <div class="heatmap" id="cryptoMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="us">
+          <div class="panel-head">
+            <div>
+              <h2>美股</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="usSummary">--</strong>
+          </div>
+          <div class="heatmap" id="usMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="tw">
+          <div class="panel-head">
+            <div>
+              <h2>台股</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="twSummary">--</strong>
+          </div>
+          <div class="heatmap" id="twMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="metal">
+          <div class="panel-head">
+            <div>
+              <h2>黃金 / 貴金屬</h2>
+              <p>黃金 ETF 市值前 10</p>
+            </div>
+            <strong id="metalSummary">--</strong>
+          </div>
+          <div class="heatmap" id="metalMap"></div>
+        </article>
+      </section>
+
+      <aside class="detail-drawer" id="detailDrawer" aria-live="polite">
+        <button class="close-button" id="closeDrawer" type="button" aria-label="關閉詳細資料">×</button>
+        <p class="eyebrow">Selected Asset</p>
+        <h3 id="detailName">點選任一格查看細節</h3>
+        <dl>
+          <div>
+            <dt>代號</dt>
+            <dd id="detailSymbol">--</dd>
+          </div>
+          <div>
+            <dt>價格</dt>
+            <dd id="detailPrice">--</dd>
+          </div>
+          <div>
+            <dt>漲跌</dt>
+            <dd id="detailChange">--</dd>
+          </div>
+          <div>
+            <dt>權重</dt>
+            <dd id="detailWeight">--</dd>
+          </div>
+        </dl>
+      </aside>
+    </main>
+
+    <script>
+const ranges = {
+  day: "今日",
+  week: "7 日",
+  month: "30 日",
+};
+
+const markets = [
+  {
+    id: "crypto",
+    mapId: "cryptoMap",
+    summaryId: "cryptoSummary",
+    items: [
+      asset("BTC", "Bitcoin", "$64,431.31", 100, 1.8, 5.0, 16.3),
+      asset("ETH", "Ethereum", "$1,747.93", 16, 2.4, 8.6, 18.2),
+      asset("USDT", "Tether", "$0.9991", 14, 0.0, 0.0, 0.0),
+      asset("BNB", "BNB", "$601.13", 6, 0.6, 2.9, 6.7),
+      asset("USDC", "USDC", "$0.9998", 6, 0.0, 0.0, 0.0),
+      asset("XRP", "XRP", "$1.19", 6, 2.6, 8.2, 14.6),
+      asset("SOL", "Solana", "$71.97", 3, 2.1, 15.2, 15.6),
+      asset("TRX", "TRON", "$0.3215", 2, 1.5, 0.1, 9.6),
+      asset("FIGR_HELOC", "Figure Heloc", "$1.02", 1.5, 1.3, 0.3, 1.4),
+      asset("HYPE", "Hyperliquid", "$71.19", 1.2, 2.9, 33.7, 51.2),
+    ],
+  },
+  {
+    id: "us",
+    mapId: "usMap",
+    summaryId: "usSummary",
+    items: [
+      asset("NVDA", "NVIDIA", "$204.65", 100, 1.33, 4.8, 15.2),
+      asset("GOOG", "Alphabet", "$362.10", 89, 2.43, 6.1, 18.6),
+      asset("AAPL", "Apple", "$295.95", 88, 1.10, 3.4, 9.8),
+      asset("MSFT", "Microsoft", "$378.91", 57, 3.79, 4.5, 7.2),
+      asset("AMZN", "Amazon", "$237.50", 52, 3.46, 5.2, 10.1),
+      asset("SPCX", "SpaceX", "$191.82", 51, 4.95, 8.8, 19.7),
+      asset("AVGO", "Broadcom", "$392.90", 38, 4.30, 9.6, 22.4),
+      asset("TSLA", "Tesla", "$396.38", 30, 2.05, 4.1, 12.6),
+      asset("META", "Meta Platforms", "$567.58", 29, 5.44, 7.3, 14.0),
+      asset("MU", "Micron Technology", "$1,043", 24, 2.20, 5.8, 16.4),
+    ],
+  },
+  {
+    id: "tw",
+    mapId: "twMap",
+    summaryId: "twSummary",
+    items: [
+      asset("TSM", "TSMC 台積電", "$432.15", 100, 1.48, 3.9, 11.8),
+      asset("2454", "MediaTek 聯發科", "$139.74", 10, 1.12, 2.8, 8.4),
+      asset("2308", "Delta 台達電", "$68.92", 8, 0.93, 4.2, 10.6),
+      asset("2317", "Foxconn 鴻海", "$8.56", 5.4, 0.73, 2.1, 5.7),
+      asset("ASX", "ASE 日月光投控", "$37.44", 3.7, 1.63, 3.8, 9.2),
+      asset("2327", "Yageo 國巨", "$34.22", 3.1, 9.76, 10.9, 21.4),
+      asset("2881", "Fubon 富邦金", "$4.40", 2.7, 2.58, 4.3, 7.8),
+      asset("UMC", "United Microelectronics 聯電", "$21.76", 2.4, 0.65, 1.8, 6.2),
+      asset("2882", "Cathay Financial 國泰金", "$3.66", 2.4, 1.75, 3.6, 6.9),
+      asset("3037", "Unimicron 欣興", "$30.96", 2.2, 1.11, 4.2, 11.3),
+    ],
+  },
+  {
+    id: "metal",
+    mapId: "metalMap",
+    summaryId: "metalSummary",
+    items: [
+      asset("GLD", "SPDR Gold Shares", "$477.48", 100, 0.86, 3.90, 4.25),
+      asset("IAU", "iShares Gold Trust", "$97.79", 45.5, 0.85, 3.90, 4.26),
+      asset("GLDM", "SPDR Gold MiniShares", "$102.83", 18.4, 0.85, 3.90, 4.28),
+      asset("SGOL", "abrdn Physical Gold Shares", "$49.51", 4.9, 0.88, 3.93, 4.30),
+      asset("IAUM", "iShares Gold Trust Micro", "$51.80", 4.5, 0.86, 3.95, 4.31),
+      asset("AAAU", "Goldman Sachs Physical Gold ETF", "$51.25", 1.8, 0.83, 3.87, 4.32),
+      asset("OUNZ", "VanEck Merk Gold ETF", "$49.98", 1.7, 0.85, 3.89, 4.23),
+      asset("BAR", "GraniteShares Gold Trust", "$51.19", 1.0, 0.85, 3.90, 4.28),
+      asset("UGL", "ProShares Ultra Gold", "$77.24", 0.8, 1.70, 7.74, 5.16),
+      asset("IGLD", "FT Vest Gold Strategy Target Income ETF", "$28.55", 0.35, 0.18, 2.96, 4.16),
+    ],
+  },
+];
+
+let activeRange = "day";
+let activeSymbol = "";
+
+const searchInput = document.querySelector("#searchInput");
+const detailDrawer = document.querySelector("#detailDrawer");
+const closeDrawer = document.querySelector("#closeDrawer");
+
+function asset(symbol, name, price, weight, day, week, month) {
+  return { symbol, name, price, weight, changes: { day, week, month } };
+}
+
+function getChange(item) {
+  return item.changes[activeRange];
+}
+
+function formatChange(value) {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
+}
+
+function tileColor(value) {
+  if (Math.abs(value) < 0.05) return "#7d838a";
+  const abs = Math.min(Math.abs(value), 10) / 10;
+  const alpha = 0.56 + abs * 0.44;
+  return value > 0 ? `rgba(12, 128, 72, ${alpha})` : `rgba(224, 84, 91, ${alpha})`;
+}
+
+function averageChange(items) {
+  const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  const weighted = items.reduce((sum, item) => sum + getChange(item) * item.weight, 0);
+  return weighted / totalWeight;
+}
+
+function layoutTreemap(items, x, y, width, height) {
+  const total = items.reduce((sum, item) => sum + item.weight, 0);
+  const sorted = [...items].sort((a, b) => b.weight - a.weight);
+  return splitItems(sorted, x, y, width, height, total);
+}
+
+function layoutMarket(items, width, height) {
+  const sorted = [...items].sort((a, b) => b.weight - a.weight);
+  const hero = sorted[0];
+  const rest = sorted.slice(1);
+  const heroHeight = Math.min(height * 0.44, Math.max(150, height * 0.34));
+  const gutter = 0;
+  const restHeight = height - heroHeight - gutter;
+
+  return [
+    { item: hero, x: 0, y: 0, width, height: heroHeight, hero: true },
+    ...layoutTreemap(rest, 0, heroHeight + gutter, width, restHeight).map((tile) => ({ ...tile, hero: false })),
+  ];
+}
+
+function splitItems(items, x, y, width, height, totalWeight) {
+  if (items.length === 0) return [];
+  if (items.length === 1) return [{ item: items[0], x, y, width, height }];
+
+  const half = totalWeight / 2;
+  let running = 0;
+  let splitIndex = 0;
+
+  for (let i = 0; i < items.length; i += 1) {
+    const nextRunning = running + items[i].weight;
+    const shouldTake = i === 0 || nextRunning <= half || Math.abs(half - nextRunning) < Math.abs(half - running);
+
+    if (!shouldTake) break;
+
+    running = nextRunning;
+    splitIndex = i + 1;
+  }
+
+  splitIndex = Math.min(Math.max(splitIndex, 1), items.length - 1);
+
+  const first = items.slice(0, splitIndex);
+  const second = items.slice(splitIndex);
+  const firstWeight = first.reduce((sum, item) => sum + item.weight, 0);
+  const secondWeight = totalWeight - firstWeight;
+
+  if (width >= height) {
+    const firstWidth = width * (firstWeight / totalWeight);
+    return [
+      ...splitItems(first, x, y, firstWidth, height, firstWeight),
+      ...splitItems(second, x + firstWidth, y, width - firstWidth, height, secondWeight),
+    ];
+  }
+
+  const firstHeight = height * (firstWeight / totalWeight);
+  return [
+    ...splitItems(first, x, y, width, firstHeight, firstWeight),
+    ...splitItems(second, x, y + firstHeight, width, height - firstHeight, secondWeight),
+  ];
+}
+
+function render() {
+  const query = searchInput.value.trim().toLowerCase();
+
+  markets.forEach((market) => {
+    const map = document.querySelector(`#${market.mapId}`);
+    const summary = document.querySelector(`#${market.summaryId}`);
+    const avg = averageChange(market.items);
+
+    summary.textContent = `${ranges[activeRange]} ${formatChange(avg)}`;
+    summary.className = avg >= 0 ? "positive" : "negative";
+    map.innerHTML = "";
+
+    const rect = map.getBoundingClientRect();
+    const layout = layoutMarket(market.items, rect.width, rect.height);
+
+    layout.forEach(({ item, x, y, width, height, hero }) => {
+      const change = getChange(item);
+      const isMatch = !query || item.symbol.toLowerCase().includes(query) || item.name.toLowerCase().includes(query);
+      const isCompact = width < 92 || height < 72;
+      const tile = document.createElement("button");
+      tile.type = "button";
+      tile.className = `tile${hero ? " hero" : ""}${isCompact ? " compact" : ""}${isMatch ? "" : " dimmed"}${activeSymbol === item.symbol ? " active" : ""}`;
+      tile.style.left = `${x}px`;
+      tile.style.top = `${y}px`;
+      tile.style.width = `${width}px`;
+      tile.style.height = `${height}px`;
+      tile.style.background = tileColor(change);
+      tile.style.fontSize = `${Math.max(18, Math.min(54, Math.sqrt(width * height) / 4.8))}px`;
+      tile.setAttribute("aria-label", `${item.name} ${item.price} ${formatChange(change)}`);
+      tile.innerHTML = `
+        <span class="tile-symbol">${item.symbol}</span>
+        <span class="tile-price">${item.price}</span>
+        <span class="tile-change">${formatChange(change)}</span>
+        <span class="tile-name">${item.name}</span>
+        <span class="tile-market-note">權重 ${item.weight} · ${ranges[activeRange]}</span>
+      `;
+      tile.addEventListener("click", () => showDetail(item));
+      map.appendChild(tile);
+    });
+  });
+}
+
+function safeRender() {
+  try {
+    render();
+  } catch (error) {
+    document.querySelectorAll(".heatmap").forEach((map) => {
+      map.innerHTML = `<div class="render-error">熱力圖載入失敗：${error.message}</div>`;
+    });
+    throw error;
+  }
+}
+
+function showDetail(item) {
+  activeSymbol = item.symbol;
+  const change = getChange(item);
+
+  document.querySelector("#detailName").textContent = item.name;
+  document.querySelector("#detailSymbol").textContent = item.symbol;
+  document.querySelector("#detailPrice").textContent = item.price;
+  document.querySelector("#detailChange").textContent = `${ranges[activeRange]} ${formatChange(change)}`;
+  document.querySelector("#detailChange").className = change >= 0 ? "positive" : "negative";
+  document.querySelector("#detailWeight").textContent = `${item.weight} / 示範權重`;
+  detailDrawer.classList.add("open");
+  safeRender();
+}
+
+document.querySelectorAll(".range-button").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelector(".range-button.active").classList.remove("active");
+    button.classList.add("active");
+    activeRange = button.dataset.range;
+    safeRender();
+  });
+});
+
+searchInput.addEventListener("input", safeRender);
+closeDrawer.addEventListener("click", () => {
+  detailDrawer.classList.remove("open");
+  activeSymbol = "";
+  safeRender();
+});
+
+window.addEventListener("resize", safeRender);
+window.addEventListener("DOMContentLoaded", safeRender);
+window.addEventListener("load", safeRender);
+requestAnimationFrame(safeRender);
+setTimeout(safeRender, 150);
+
+</script>
+  </body>
+</html>

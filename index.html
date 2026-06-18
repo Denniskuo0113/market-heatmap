@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="即時追蹤加密貨幣、美股、台股與黃金、白銀、原油的市場熱力圖。"
+    />
+    <title>市場熱力圖</title>
+    <link rel="stylesheet" href="./styles.css?v=20260618-4" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Market Heatmap</p>
+          <h1>加密貨幣 / 美股 / 台股 / 黃金</h1>
+        </div>
+        <div class="toolbar" aria-label="熱力圖控制列">
+          <div class="live-status" id="liveStatus">即時報價準備中</div>
+          <label class="search-box" for="searchInput">
+            <span>搜尋</span>
+            <input id="searchInput" type="search" placeholder="BTC、AAPL、台積電..." autocomplete="off" />
+          </label>
+          <div class="range-tabs" role="tablist" aria-label="時間區間">
+            <button class="range-button active" type="button" data-range="day">今日</button>
+            <button class="range-button" type="button" data-range="week">7 日</button>
+            <button class="range-button" type="button" data-range="month">30 日</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="dashboard" aria-label="市場熱力圖">
+        <article class="market-panel featured" data-market="crypto">
+          <div class="panel-head">
+            <div>
+              <h2>加密貨幣</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="cryptoSummary">--</strong>
+          </div>
+          <div class="heatmap" id="cryptoMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="us">
+          <div class="panel-head">
+            <div>
+              <h2>美股</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="usSummary">--</strong>
+          </div>
+          <div class="heatmap" id="usMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="tw">
+          <div class="panel-head">
+            <div>
+              <h2>台股</h2>
+              <p>市值前 10</p>
+            </div>
+            <strong id="twSummary">--</strong>
+          </div>
+          <div class="heatmap" id="twMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="metal">
+          <div class="panel-head">
+            <div>
+              <h2>黃金 / 白銀 / 原油</h2>
+              <p>GC=F / SI=F / CL=F</p>
+            </div>
+            <strong id="metalSummary">--</strong>
+          </div>
+          <div class="heatmap" id="metalMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="usIndex">
+          <div class="panel-head">
+            <div>
+              <h2>美股主要指數</h2>
+              <p>S&P 500 / Nasdaq / Dow</p>
+            </div>
+            <strong id="usIndexSummary">--</strong>
+          </div>
+          <div class="heatmap" id="usIndexMap"></div>
+        </article>
+
+        <article class="market-panel" data-market="twIndex">
+          <div class="panel-head">
+            <div>
+              <h2>台股主要指數</h2>
+              <p>TAIEX / TPEx / TW50 / Semiconductor</p>
+            </div>
+            <strong id="twIndexSummary">--</strong>
+          </div>
+          <div class="heatmap" id="twIndexMap"></div>
+        </article>
+      </section>
+
+      <section class="market-notes" aria-label="資料來源與免責聲明">
+        <p>
+          資料來源：Binance、TWSE、Nasdaq、Yahoo Finance。不同市場可能有延遲、暫存或收盤狀態。
+        </p>
+        <p>
+          本頁資料僅供資訊參考，不構成投資建議、交易建議或任何買賣邀約；實際價格請以交易所或券商報價為準。
+        </p>
+      </section>
+
+      <aside class="detail-drawer" id="detailDrawer" aria-live="polite">
+        <button class="close-button" id="closeDrawer" type="button" aria-label="關閉詳細資料">×</button>
+        <p class="eyebrow">Selected Asset</p>
+        <h3 id="detailName">點選任一格查看細節</h3>
+        <dl>
+          <div>
+            <dt>代號</dt>
+            <dd id="detailSymbol">--</dd>
+          </div>
+          <div>
+            <dt>價格</dt>
+            <dd id="detailPrice">--</dd>
+          </div>
+          <div>
+            <dt>漲跌</dt>
+            <dd id="detailChange">--</dd>
+          </div>
+          <div>
+            <dt>權重</dt>
+            <dd id="detailWeight">--</dd>
+          </div>
+        </dl>
+      </aside>
+    </main>
+
+    <script src="./app.js?v=20260618-7"></script>
+  </body>
+</html>
