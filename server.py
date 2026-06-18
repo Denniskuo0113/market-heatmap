@@ -76,6 +76,11 @@ TWSE_INDEX_CHANNELS = {
     "otc_o00.tw": {"code": "o00", "tv_symbol": "INDEX:TWOII", "source": "TWSE Index"},
     "tse_t24.tw": {"code": "t24", "tv_symbol": "INDEX:TWSEMI", "source": "TWSE Index"},
 }
+YAHOO_TWSE_FALLBACK_SYMBOLS = {
+    **{f"{code}.TW": {"tv_symbol": tv_symbol} for code, tv_symbol in TWSE_SYMBOLS.items()},
+    "^TWII": {"tv_symbol": "INDEX:TWII"},
+    "^TWOII": {"tv_symbol": "INDEX:TWOII"},
+}
 LAST_SUCCESS = None
 LAST_FETCHED_AT = 0
 CACHE_TTL_SECONDS = 2
@@ -177,16 +182,19 @@ def fetch_twse_quotes():
         {"ex_ch": channels, "json": "1", "delay": "0"},
         safe="|",
     )
-    data = fetch_json(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json",
-            "Referer": "https://mis.twse.com.tw/stock/index.jsp",
-        },
-        timeout=6,
-        verify_tls=False,
-    )
+    try:
+        data = fetch_json(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json",
+                "Referer": "https://mis.twse.com.tw/stock/index.jsp",
+            },
+            timeout=6,
+            verify_tls=False,
+        )
+    except Exception:
+        return fetch_yahoo_twse_fallback_quotes()
 
     quotes = []
     for row in data.get("msgArray", []):
@@ -211,6 +219,24 @@ def fetch_twse_quotes():
                 "source": (index_config or {}).get("source", "TWSE"),
             }
         )
+    return quotes
+
+
+def fetch_yahoo_twse_fallback_quotes():
+    quotes = []
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {
+            executor.submit(fetch_yahoo_commodity_one, symbol, config)
+            for symbol, config in YAHOO_TWSE_FALLBACK_SYMBOLS.items()
+        }
+        for future in as_completed(futures):
+            try:
+                quote = future.result()
+            except Exception:
+                continue
+            if quote:
+                quote["source"] = "Yahoo Finance TW"
+                quotes.append(quote)
     return quotes
 
 
