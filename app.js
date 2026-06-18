@@ -4,7 +4,7 @@ const ranges = {
   month: "30 日",
 };
 
-const LIVE_REFRESH_MS = 2000;
+const LIVE_REFRESH_MS = 1000;
 const LIVE_REQUEST_TIMEOUT_MS = 6000;
 const LIVE_QUOTES_URL = window.location.protocol === "file:" ? "http://127.0.0.1:5184/api/quotes" : "/api/quotes";
 const FLASH_MS = 900;

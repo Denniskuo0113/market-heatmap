@@ -92,11 +92,11 @@ LAST_FETCHED_AT = 0
 REFRESH_FUTURE = None
 CACHE_LOCK = Lock()
 BACKGROUND_EXECUTOR = ThreadPoolExecutor(max_workers=1)
-CACHE_TTL_SECONDS = 2
+CACHE_TTL_SECONDS = 1
 SOURCE_FETCH_DEADLINE_SECONDS = 12
 FALLBACK_SOURCE = "備用資料"
 SOURCE_CACHE = {
-    "Binance": {"quotes": [], "updated_at": 0, "ttl": 2},
+    "Binance": {"quotes": [], "updated_at": 0, "ttl": 1},
     "TWSE": {"quotes": [], "updated_at": 0, "ttl": 5},
     "Nasdaq": {"quotes": [], "updated_at": 0, "ttl": 30},
     "Yahoo": {"quotes": [], "updated_at": 0, "ttl": 15},
