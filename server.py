@@ -2,6 +2,7 @@
 import json
 import mimetypes
 import os
+import ssl
 import time
 import urllib.parse
 import urllib.request
@@ -106,7 +107,7 @@ def parse_number(value):
     return float(str(value).replace("$", "").replace("%", "").replace(",", "").strip())
 
 
-def fetch_json(url, headers=None, timeout=8):
+def fetch_json(url, headers=None, timeout=8, verify_tls=True):
     request = urllib.request.Request(
         url,
         headers=headers
@@ -115,7 +116,8 @@ def fetch_json(url, headers=None, timeout=8):
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    context = None if verify_tls else ssl._create_unverified_context()
+    with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -183,6 +185,7 @@ def fetch_twse_quotes():
             "Referer": "https://mis.twse.com.tw/stock/index.jsp",
         },
         timeout=6,
+        verify_tls=False,
     )
 
     quotes = []
