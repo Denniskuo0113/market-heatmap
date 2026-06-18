@@ -6,7 +6,7 @@ import ssl
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -29,9 +29,10 @@ BINANCE_SYMBOLS = {
     "DOGEUSDT": {"tv_symbol": "BINANCE:DOGEUSDT"},
     "ADAUSDT": {"tv_symbol": "BINANCE:ADAUSDT"},
 }
-BINANCE_FALLBACK_BASES = (
-    "https://api1.binance.com",
+BINANCE_SPOT_BASES = (
     "https://api.binance.us",
+    "https://api.binance.com",
+    "https://api1.binance.com",
 )
 NASDAQ_SYMBOLS = {
     "NVDA": ("NASDAQ:NVDA", "stocks"),
@@ -88,6 +89,7 @@ YAHOO_TWSE_FALLBACK_SYMBOLS = {
 LAST_SUCCESS = None
 LAST_FETCHED_AT = 0
 CACHE_TTL_SECONDS = 2
+SOURCE_FETCH_DEADLINE_SECONDS = 12
 SOURCE_CACHE = {
     "Binance": {"quotes": [], "updated_at": 0, "ttl": 2},
     "TWSE": {"quotes": [], "updated_at": 0, "ttl": 5},
@@ -152,43 +154,52 @@ def fetch_binance_quotes():
         },
     ]
 
-    for symbol, config in BINANCE_SYMBOLS.items():
-        row = None
-        source = config.get("source", "Binance")
+    def fetch_binance_one(symbol, config):
         try:
-            url = config.get("url") or f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
-            row = fetch_json(url, timeout=4)
-        except Exception:
             if config.get("url"):
-                continue
-
-        if row is None:
-            for base_url in BINANCE_FALLBACK_BASES:
-                try:
-                    row = fetch_json(f"{base_url}/api/v3/ticker/24hr?symbol={symbol}", timeout=4)
-                    source = "Binance.US" if "binance.us" in base_url else "Binance"
-                    break
-                except Exception:
-                    continue
-
-        if row is None:
-            continue
+                row = fetch_json(config["url"], timeout=3)
+                source = config.get("source", "Binance")
+            else:
+                row = None
+                source = config.get("source", "Binance")
+                for base_url in BINANCE_SPOT_BASES:
+                    try:
+                        row = fetch_json(f"{base_url}/api/v3/ticker/24hr?symbol={symbol}", timeout=3)
+                        source = "Binance.US" if "binance.us" in base_url else "Binance"
+                        break
+                    except Exception:
+                        continue
+                if row is None:
+                    return None
+        except Exception:
+            return None
 
         tv_symbol = config["tv_symbol"]
         price = parse_number(row.get("lastPrice"))
         if not tv_symbol or price is None:
-            continue
-        quotes.append(
-            {
-                "tvSymbol": tv_symbol,
-                "price": price,
-                "priceText": format_price(price, "USD"),
-                "changePercent": parse_number(row.get("priceChangePercent")) or 0,
-                "changeAbs": parse_number(row.get("priceChange")) or 0,
-                "currency": "USD",
-                "source": source,
-            }
-        )
+            return None
+        return {
+            "tvSymbol": tv_symbol,
+            "price": price,
+            "priceText": format_price(price, "USD"),
+            "changePercent": parse_number(row.get("priceChangePercent")) or 0,
+            "changeAbs": parse_number(row.get("priceChange")) or 0,
+            "currency": "USD",
+            "source": source,
+        }
+
+    with ThreadPoolExecutor(max_workers=min(len(BINANCE_SYMBOLS), 10)) as executor:
+        futures = {
+            executor.submit(fetch_binance_one, symbol, config)
+            for symbol, config in BINANCE_SYMBOLS.items()
+        }
+        for future in as_completed(futures):
+            try:
+                quote = future.result()
+            except Exception:
+                continue
+            if quote:
+                quotes.append(quote)
     return quotes
 
 
@@ -374,15 +385,21 @@ def fetch_all_sources():
         if not cache["quotes"] or now - cache["updated_at"] >= cache["ttl"]
     ]
 
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(fetchers[source]): source for source in due_sources}
-        for future in as_completed(futures):
-            source = futures[future]
-            try:
-                SOURCE_CACHE[source]["quotes"] = future.result()
-                SOURCE_CACHE[source]["updated_at"] = now
-            except Exception as error:
-                errors.append(f"{source}: {error}")
+    executor = ThreadPoolExecutor(max_workers=max(len(due_sources), 1))
+    futures = {executor.submit(fetchers[source]): source for source in due_sources}
+    done, pending = wait(futures, timeout=SOURCE_FETCH_DEADLINE_SECONDS)
+    for future in done:
+        source = futures[future]
+        try:
+            SOURCE_CACHE[source]["quotes"] = future.result()
+            SOURCE_CACHE[source]["updated_at"] = now
+        except Exception as error:
+            errors.append(f"{source}: {error}")
+    for future in pending:
+        source = futures[future]
+        future.cancel()
+        errors.append(f"{source}: timed out")
+    executor.shutdown(wait=False, cancel_futures=True)
 
     quotes = []
     for cache in SOURCE_CACHE.values():
