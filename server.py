@@ -29,6 +29,10 @@ BINANCE_SYMBOLS = {
     "DOGEUSDT": {"tv_symbol": "BINANCE:DOGEUSDT"},
     "ADAUSDT": {"tv_symbol": "BINANCE:ADAUSDT"},
 }
+BINANCE_FALLBACK_BASES = (
+    "https://api1.binance.com",
+    "https://api.binance.us",
+)
 NASDAQ_SYMBOLS = {
     "NVDA": ("NASDAQ:NVDA", "stocks"),
     "GOOG": ("NASDAQ:GOOG", "stocks"),
@@ -149,10 +153,25 @@ def fetch_binance_quotes():
     ]
 
     for symbol, config in BINANCE_SYMBOLS.items():
+        row = None
+        source = config.get("source", "Binance")
         try:
             url = config.get("url") or f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
             row = fetch_json(url, timeout=4)
         except Exception:
+            if config.get("url"):
+                continue
+
+        if row is None:
+            for base_url in BINANCE_FALLBACK_BASES:
+                try:
+                    row = fetch_json(f"{base_url}/api/v3/ticker/24hr?symbol={symbol}", timeout=4)
+                    source = "Binance.US" if "binance.us" in base_url else "Binance"
+                    break
+                except Exception:
+                    continue
+
+        if row is None:
             continue
 
         tv_symbol = config["tv_symbol"]
@@ -167,7 +186,7 @@ def fetch_binance_quotes():
                 "changePercent": parse_number(row.get("priceChangePercent")) or 0,
                 "changeAbs": parse_number(row.get("priceChange")) or 0,
                 "currency": "USD",
-                "source": config.get("source", "Binance"),
+                "source": source,
             }
         )
     return quotes
