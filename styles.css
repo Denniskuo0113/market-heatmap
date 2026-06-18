@@ -578,3 +578,55 @@ dd {
     height: 430px;
   }
 }
+
+@media (max-width: 640px) {
+  .app-shell {
+    width: calc(100vw - 16px);
+    padding: 14px 0 24px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .toolbar {
+    gap: 10px;
+  }
+
+  .live-status,
+  .search-box,
+  .range-tabs {
+    height: 42px;
+  }
+
+  .panel-head {
+    height: 56px;
+    align-items: flex-start;
+    padding: 9px 12px;
+  }
+
+  .panel-head p {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .heatmap {
+    height: calc(100% - 56px);
+  }
+
+  .market-panel,
+  .market-panel.featured {
+    height: 390px;
+  }
+
+  .detail-drawer {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: auto;
+    max-height: min(430px, calc(100vh - 24px));
+    overflow: auto;
+  }
+}

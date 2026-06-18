@@ -5,6 +5,7 @@ const ranges = {
 };
 
 const LIVE_REFRESH_MS = 2000;
+const LIVE_REQUEST_TIMEOUT_MS = 6000;
 const LIVE_QUOTES_URL = window.location.protocol === "file:" ? "http://127.0.0.1:5184/api/quotes" : "/api/quotes";
 const FLASH_MS = 900;
 
@@ -108,6 +109,7 @@ const markets = [
 
 let activeRange = "day";
 let activeSymbol = "";
+let refreshInFlight = false;
 
 const searchInput = document.querySelector("#searchInput");
 const detailDrawer = document.querySelector("#detailDrawer");
@@ -334,8 +336,17 @@ function findAssetByTvSymbol(tvSymbol) {
 }
 
 async function refreshLiveQuotes() {
+  if (refreshInFlight || document.hidden) return;
+
+  refreshInFlight = true;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), LIVE_REQUEST_TIMEOUT_MS);
+
   try {
-    const response = await fetch(`${LIVE_QUOTES_URL}?t=${Date.now()}`, { cache: "no-store" });
+    const response = await fetch(`${LIVE_QUOTES_URL}?t=${Date.now()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     const payload = await response.json();
 
     if (!payload.quotes.length) {
@@ -384,6 +395,10 @@ async function refreshLiveQuotes() {
     const time = new Date(payload.updatedAt).toLocaleTimeString("zh-TW", { hour12: false });
     if (payload.ok === false) {
       setLiveStatus(`資料異常 ${time}`, "error");
+    } else if (payload.fallback) {
+      setLiveStatus(`更新中 ${time}`, "");
+    } else if (payload.refreshing) {
+      setLiveStatus(`更新中 ${time}`, "live");
     } else if (payload.stale) {
       setLiveStatus(`暫存資料 ${time}`, "");
     } else {
@@ -392,6 +407,9 @@ async function refreshLiveQuotes() {
   } catch (error) {
     const hasLiveData = markets.some((market) => market.items.some((item) => item.updatedAt));
     setLiveStatus(hasLiveData ? "使用目前資料" : "等待報價服務", "");
+  } finally {
+    clearTimeout(timeoutId);
+    refreshInFlight = false;
   }
 }
 
@@ -426,6 +444,9 @@ closeDrawer.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", safeRender);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshLiveQuotes();
+});
 window.addEventListener("DOMContentLoaded", safeRender);
 window.addEventListener("load", safeRender);
 requestAnimationFrame(safeRender);

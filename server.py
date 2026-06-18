@@ -94,6 +94,7 @@ CACHE_LOCK = Lock()
 BACKGROUND_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 CACHE_TTL_SECONDS = 2
 SOURCE_FETCH_DEADLINE_SECONDS = 12
+FALLBACK_SOURCE = "備用資料"
 SOURCE_CACHE = {
     "Binance": {"quotes": [], "updated_at": 0, "ttl": 2},
     "TWSE": {"quotes": [], "updated_at": 0, "ttl": 5},
@@ -101,27 +102,27 @@ SOURCE_CACHE = {
     "Yahoo": {"quotes": [], "updated_at": 0, "ttl": 15},
 }
 FALLBACK_QUOTES = [
-    {"tvSymbol": "BINANCE:BTCUSDT", "price": 64431.31, "priceText": "$64,431.31", "changePercent": 1.8, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "BINANCE:ETHUSDT", "price": 1747.93, "priceText": "$1,747.93", "changePercent": 2.4, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "BINANCE:BNBUSDT", "price": 601.13, "priceText": "$601.13", "changePercent": 0.6, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "BINANCE:XRPUSDT", "price": 1.19, "priceText": "$1.19", "changePercent": 2.6, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "BINANCE:SOLUSDT", "price": 71.97, "priceText": "$71.97", "changePercent": 2.1, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "BINANCE:TRXUSDT", "price": 0.3215, "priceText": "$0.3215", "changePercent": 1.5, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "NASDAQ:NVDA", "price": 204.65, "priceText": "$204.65", "changePercent": 1.33, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "NASDAQ:MSFT", "price": 378.91, "priceText": "$378.91", "changePercent": 3.79, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "NASDAQ:AAPL", "price": 295.95, "priceText": "$295.95", "changePercent": 1.1, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "TWSE:2330", "price": 2410, "priceText": "NT$2,410", "changePercent": 1.05, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
-    {"tvSymbol": "TWSE:2454", "price": 4390, "priceText": "NT$4,390", "changePercent": -1.57, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
-    {"tvSymbol": "TWSE:2308", "price": 2150, "priceText": "NT$2,150", "changePercent": -0.23, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
-    {"tvSymbol": "COMMODITY:GOLD", "price": 4300, "priceText": "$4,300", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "COMMODITY:SILVER", "price": 50, "priceText": "$50.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "COMMODITY:WTI", "price": 75, "priceText": "$75.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:GSPC", "price": 6700, "priceText": "$6,700", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:IXIC", "price": 22000, "priceText": "$22,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:DJI", "price": 46000, "priceText": "$46,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:TWII", "price": 28000, "priceText": "NT$28,000", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:TWOII", "price": 270, "priceText": "NT$270.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
-    {"tvSymbol": "INDEX:TWSEMI", "price": 900, "priceText": "NT$900.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:BTCUSDT", "price": 64431.31, "priceText": "$64,431.31", "changePercent": 1.8, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "BINANCE:ETHUSDT", "price": 1747.93, "priceText": "$1,747.93", "changePercent": 2.4, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "BINANCE:BNBUSDT", "price": 601.13, "priceText": "$601.13", "changePercent": 0.6, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "BINANCE:XRPUSDT", "price": 1.19, "priceText": "$1.19", "changePercent": 2.6, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "BINANCE:SOLUSDT", "price": 71.97, "priceText": "$71.97", "changePercent": 2.1, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "BINANCE:TRXUSDT", "price": 0.3215, "priceText": "$0.3215", "changePercent": 1.5, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "NASDAQ:NVDA", "price": 204.65, "priceText": "$204.65", "changePercent": 1.33, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "NASDAQ:MSFT", "price": 378.91, "priceText": "$378.91", "changePercent": 3.79, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "NASDAQ:AAPL", "price": 295.95, "priceText": "$295.95", "changePercent": 1.1, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "TWSE:2330", "price": 2410, "priceText": "NT$2,410", "changePercent": 1.05, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "TWSE:2454", "price": 4390, "priceText": "NT$4,390", "changePercent": -1.57, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "TWSE:2308", "price": 2150, "priceText": "NT$2,150", "changePercent": -0.23, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "COMMODITY:GOLD", "price": 4300, "priceText": "$4,300", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "COMMODITY:SILVER", "price": 50, "priceText": "$50.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "COMMODITY:WTI", "price": 75, "priceText": "$75.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:GSPC", "price": 6700, "priceText": "$6,700", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:IXIC", "price": 22000, "priceText": "$22,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:DJI", "price": 46000, "priceText": "$46,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:TWII", "price": 28000, "priceText": "NT$28,000", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:TWOII", "price": 270, "priceText": "NT$270.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
+    {"tvSymbol": "INDEX:TWSEMI", "price": 900, "priceText": "NT$900.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": FALLBACK_SOURCE},
 ]
 
 
@@ -441,6 +442,7 @@ def fetch_quotes():
     if LAST_SUCCESS and now - LAST_FETCHED_AT < CACHE_TTL_SECONDS:
         cached = dict(LAST_SUCCESS)
         cached["cached"] = True
+        cached["servedAt"] = datetime.now(timezone.utc).isoformat()
         return cached
 
     with CACHE_LOCK:
@@ -451,11 +453,12 @@ def fetch_quotes():
             cached = dict(LAST_SUCCESS)
             cached["stale"] = True
             cached["refreshing"] = True
-            cached["updatedAt"] = datetime.now(timezone.utc).isoformat()
+            cached["servedAt"] = datetime.now(timezone.utc).isoformat()
             return cached
 
     return {
         "ok": True,
+        "fallback": True,
         "stale": True,
         "refreshing": True,
         "source": "Fallback while quotes refresh",
@@ -515,7 +518,7 @@ class HeatmapHandler(SimpleHTTPRequestHandler):
                 payload["ok"] = True
                 payload["stale"] = True
                 payload["error"] = str(error)
-                payload["updatedAt"] = datetime.now(timezone.utc).isoformat()
+                payload["servedAt"] = datetime.now(timezone.utc).isoformat()
             else:
                 payload = {
                     "ok": False,
