@@ -9,6 +9,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed, wait
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from threading import Lock
 
 
 HOST = os.environ.get("HOST", "127.0.0.1")
@@ -88,6 +89,9 @@ YAHOO_TWSE_FALLBACK_SYMBOLS = {
 }
 LAST_SUCCESS = None
 LAST_FETCHED_AT = 0
+REFRESH_FUTURE = None
+CACHE_LOCK = Lock()
+BACKGROUND_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 CACHE_TTL_SECONDS = 2
 SOURCE_FETCH_DEADLINE_SECONDS = 12
 SOURCE_CACHE = {
@@ -96,6 +100,29 @@ SOURCE_CACHE = {
     "Nasdaq": {"quotes": [], "updated_at": 0, "ttl": 30},
     "Yahoo": {"quotes": [], "updated_at": 0, "ttl": 15},
 }
+FALLBACK_QUOTES = [
+    {"tvSymbol": "BINANCE:BTCUSDT", "price": 64431.31, "priceText": "$64,431.31", "changePercent": 1.8, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:ETHUSDT", "price": 1747.93, "priceText": "$1,747.93", "changePercent": 2.4, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:BNBUSDT", "price": 601.13, "priceText": "$601.13", "changePercent": 0.6, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:XRPUSDT", "price": 1.19, "priceText": "$1.19", "changePercent": 2.6, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:SOLUSDT", "price": 71.97, "priceText": "$71.97", "changePercent": 2.1, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "BINANCE:TRXUSDT", "price": 0.3215, "priceText": "$0.3215", "changePercent": 1.5, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "NASDAQ:NVDA", "price": 204.65, "priceText": "$204.65", "changePercent": 1.33, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "NASDAQ:MSFT", "price": 378.91, "priceText": "$378.91", "changePercent": 3.79, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "NASDAQ:AAPL", "price": 295.95, "priceText": "$295.95", "changePercent": 1.1, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "TWSE:2330", "price": 2410, "priceText": "NT$2,410", "changePercent": 1.05, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "TWSE:2454", "price": 4390, "priceText": "NT$4,390", "changePercent": -1.57, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "TWSE:2308", "price": 2150, "priceText": "NT$2,150", "changePercent": -0.23, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "COMMODITY:GOLD", "price": 4300, "priceText": "$4,300", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "COMMODITY:SILVER", "price": 50, "priceText": "$50.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "COMMODITY:WTI", "price": 75, "priceText": "$75.00", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:GSPC", "price": 6700, "priceText": "$6,700", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:IXIC", "price": 22000, "priceText": "$22,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:DJI", "price": 46000, "priceText": "$46,000", "changePercent": 0, "changeAbs": 0, "currency": "USD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:TWII", "price": 28000, "priceText": "NT$28,000", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:TWOII", "price": 270, "priceText": "NT$270.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+    {"tvSymbol": "INDEX:TWSEMI", "price": 900, "priceText": "NT$900.00", "changePercent": 0, "changeAbs": 0, "currency": "TWD", "source": "Fallback"},
+]
 
 
 def format_price(value, currency):
@@ -408,13 +435,39 @@ def fetch_all_sources():
 
 
 def fetch_quotes():
-    global LAST_SUCCESS, LAST_FETCHED_AT
+    global LAST_SUCCESS, LAST_FETCHED_AT, REFRESH_FUTURE
 
     now = time.time()
     if LAST_SUCCESS and now - LAST_FETCHED_AT < CACHE_TTL_SECONDS:
         cached = dict(LAST_SUCCESS)
         cached["cached"] = True
         return cached
+
+    with CACHE_LOCK:
+        if not REFRESH_FUTURE or REFRESH_FUTURE.done():
+            REFRESH_FUTURE = BACKGROUND_EXECUTOR.submit(refresh_quotes_cache)
+
+        if LAST_SUCCESS:
+            cached = dict(LAST_SUCCESS)
+            cached["stale"] = True
+            cached["refreshing"] = True
+            cached["updatedAt"] = datetime.now(timezone.utc).isoformat()
+            return cached
+
+    return {
+        "ok": True,
+        "stale": True,
+        "refreshing": True,
+        "source": "Fallback while quotes refresh",
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+        "quoteCount": len(FALLBACK_QUOTES),
+        "quotes": FALLBACK_QUOTES,
+        "warnings": ["Live providers are refreshing in the background"],
+    }
+
+
+def refresh_quotes_cache():
+    global LAST_SUCCESS, LAST_FETCHED_AT
 
     quotes, errors = fetch_all_sources()
 
@@ -429,8 +482,9 @@ def fetch_quotes():
         "quotes": quotes,
         "warnings": errors,
     }
-    LAST_SUCCESS = payload
-    LAST_FETCHED_AT = now
+    with CACHE_LOCK:
+        LAST_SUCCESS = payload
+        LAST_FETCHED_AT = time.time()
     return payload
 
 
