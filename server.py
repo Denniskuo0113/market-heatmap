@@ -90,16 +90,17 @@ YAHOO_TWSE_FALLBACK_SYMBOLS = {
 LAST_SUCCESS = None
 LAST_FETCHED_AT = 0
 REFRESH_FUTURE = None
+SOURCE_REFRESH_FUTURES = {}
 CACHE_LOCK = Lock()
-BACKGROUND_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+BACKGROUND_EXECUTOR = ThreadPoolExecutor(max_workers=4)
 CACHE_TTL_SECONDS = 1
 SOURCE_FETCH_DEADLINE_SECONDS = 12
 FALLBACK_SOURCE = "備用資料"
 SOURCE_CACHE = {
-    "Binance": {"quotes": [], "updated_at": 0, "ttl": 1},
-    "TWSE": {"quotes": [], "updated_at": 0, "ttl": 5},
-    "Nasdaq": {"quotes": [], "updated_at": 0, "ttl": 30},
-    "Yahoo": {"quotes": [], "updated_at": 0, "ttl": 15},
+    "Binance": {"quotes": [], "updated_at": 0, "ttl": 1, "error": ""},
+    "TWSE": {"quotes": [], "updated_at": 0, "ttl": 5, "error": ""},
+    "Nasdaq": {"quotes": [], "updated_at": 0, "ttl": 30, "error": ""},
+    "Yahoo": {"quotes": [], "updated_at": 0, "ttl": 15, "error": ""},
 }
 FALLBACK_QUOTES = [
     {"tvSymbol": "BINANCE:BTCUSDT", "price": 64431.31, "priceText": "$64,431.31", "changePercent": 1.8, "changeAbs": 0, "currency": "USD", "source": FALLBACK_SOURCE},
@@ -435,38 +436,91 @@ def fetch_all_sources():
     return quotes, errors
 
 
-def fetch_quotes():
-    global LAST_SUCCESS, LAST_FETCHED_AT, REFRESH_FUTURE
+def source_fetchers():
+    return {
+        "Binance": fetch_binance_quotes,
+        "TWSE": fetch_twse_quotes,
+        "Nasdaq": fetch_nasdaq_quotes,
+        "Yahoo": fetch_yahoo_commodity_quotes,
+    }
 
-    now = time.time()
-    if LAST_SUCCESS and now - LAST_FETCHED_AT < CACHE_TTL_SECONDS:
-        cached = dict(LAST_SUCCESS)
-        cached["cached"] = True
-        cached["servedAt"] = datetime.now(timezone.utc).isoformat()
-        return cached
+
+def refresh_source_cache(source):
+    try:
+        quotes = source_fetchers()[source]()
+    except Exception as error:
+        with CACHE_LOCK:
+            SOURCE_CACHE[source]["error"] = str(error)
+        return
 
     with CACHE_LOCK:
-        if not REFRESH_FUTURE or REFRESH_FUTURE.done():
-            REFRESH_FUTURE = BACKGROUND_EXECUTOR.submit(refresh_quotes_cache)
+        if source == "Binance" and len(quotes) <= 2:
+            SOURCE_CACHE[source]["error"] = "Binance returned partial crypto quotes"
+            return
 
-        if LAST_SUCCESS:
-            cached = dict(LAST_SUCCESS)
-            cached["stale"] = True
-            cached["refreshing"] = True
-            cached["servedAt"] = datetime.now(timezone.utc).isoformat()
-            return cached
+        SOURCE_CACHE[source]["quotes"] = quotes
+        SOURCE_CACHE[source]["updated_at"] = time.time()
+        SOURCE_CACHE[source]["error"] = ""
+
+
+def schedule_due_source_refreshes(now):
+    fetchers = source_fetchers()
+    refreshing = []
+
+    for source, cache in SOURCE_CACHE.items():
+        future = SOURCE_REFRESH_FUTURES.get(source)
+        if future and not future.done():
+            refreshing.append(source)
+            continue
+
+        if source in fetchers and (not cache["quotes"] or now - cache["updated_at"] >= cache["ttl"]):
+            SOURCE_REFRESH_FUTURES[source] = BACKGROUND_EXECUTOR.submit(refresh_source_cache, source)
+            refreshing.append(source)
+
+    return refreshing
+
+
+def current_quotes_payload(refreshing=None, fallback=False):
+    quotes = []
+    warnings = []
+    latest_updated_at = 0
+
+    for source, cache in SOURCE_CACHE.items():
+        quotes.extend(cache["quotes"])
+        latest_updated_at = max(latest_updated_at, cache["updated_at"])
+        if cache.get("error"):
+            warnings.append(f"{source}: {cache['error']}")
+
+    if not quotes:
+        quotes = FALLBACK_QUOTES
+        fallback = True
+        latest_updated_at = time.time()
+        warnings.append("Live providers are refreshing in the background")
 
     return {
         "ok": True,
-        "fallback": True,
-        "stale": True,
-        "refreshing": True,
-        "source": "Fallback while quotes refresh",
-        "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "quoteCount": len(FALLBACK_QUOTES),
-        "quotes": FALLBACK_QUOTES,
-        "warnings": ["Live providers are refreshing in the background"],
+        "fallback": fallback,
+        "refreshing": bool(refreshing),
+        "refreshingSources": refreshing or [],
+        "source": "Binance + TWSE + Nasdaq",
+        "updatedAt": datetime.fromtimestamp(latest_updated_at, timezone.utc).isoformat(),
+        "servedAt": datetime.now(timezone.utc).isoformat(),
+        "quoteCount": len(quotes),
+        "quotes": quotes,
+        "warnings": warnings,
     }
+
+
+def fetch_quotes():
+    global LAST_SUCCESS, LAST_FETCHED_AT
+
+    now = time.time()
+    with CACHE_LOCK:
+        refreshing = schedule_due_source_refreshes(now)
+        payload = current_quotes_payload(refreshing=refreshing)
+        LAST_SUCCESS = payload
+        LAST_FETCHED_AT = now
+        return payload
 
 
 def refresh_quotes_cache():
