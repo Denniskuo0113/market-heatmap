@@ -31,9 +31,9 @@ BINANCE_SYMBOLS = {
     "ADAUSDT": {"tv_symbol": "BINANCE:ADAUSDT"},
 }
 BINANCE_SPOT_BASES = (
-    "https://api.binance.us",
     "https://api.binance.com",
     "https://api1.binance.com",
+    "https://api.binance.us",
 )
 NASDAQ_SYMBOLS = {
     "NVDA": ("NASDAQ:NVDA", "stocks"),
@@ -183,26 +183,26 @@ def fetch_binance_quotes():
         },
     ]
 
-    def fetch_binance_one(symbol, config):
-        try:
-            if config.get("url"):
-                row = fetch_json(config["url"], timeout=3)
-                source = config.get("source", "Binance")
-            else:
-                row = None
-                source = config.get("source", "Binance")
-                for base_url in BINANCE_SPOT_BASES:
-                    try:
-                        row = fetch_json(f"{base_url}/api/v3/ticker/24hr?symbol={symbol}", timeout=3)
-                        source = "Binance.US" if "binance.us" in base_url else "Binance"
-                        break
-                    except Exception:
-                        continue
-                if row is None:
-                    return None
-        except Exception:
-            return None
+    def fetch_binance_spot_bulk():
+        symbols = [
+            symbol
+            for symbol, config in BINANCE_SYMBOLS.items()
+            if not config.get("url")
+        ]
+        query = urllib.parse.urlencode({"symbols": json.dumps(symbols, separators=(",", ":"))})
+        for base_url in BINANCE_SPOT_BASES:
+            try:
+                rows = fetch_json(f"{base_url}/api/v3/ticker/24hr?{query}", timeout=3)
+                if isinstance(rows, list):
+                    source = "Binance.US" if "binance.us" in base_url else "Binance"
+                    return {row.get("symbol"): (row, source) for row in rows if row.get("symbol")}
+            except Exception:
+                continue
+        return {}
 
+    spot_rows = fetch_binance_spot_bulk()
+
+    def quote_from_row(symbol, config, row, source):
         tv_symbol = config["tv_symbol"]
         price = parse_number(row.get("lastPrice"))
         if not tv_symbol or price is None:
@@ -217,10 +217,50 @@ def fetch_binance_quotes():
             "source": source,
         }
 
-    with ThreadPoolExecutor(max_workers=min(len(BINANCE_SYMBOLS), 10)) as executor:
+    for symbol, config in BINANCE_SYMBOLS.items():
+        if config.get("url"):
+            continue
+        row_source = spot_rows.get(symbol)
+        if row_source:
+            quote = quote_from_row(symbol, config, *row_source)
+            if quote:
+                quotes.append(quote)
+
+    if spot_rows:
+        missing_symbols = {
+            symbol: config
+            for symbol, config in BINANCE_SYMBOLS.items()
+            if config.get("url")
+        }
+    else:
+        missing_symbols = BINANCE_SYMBOLS
+
+    def fetch_binance_one(symbol, config):
+        try:
+            if config.get("url"):
+                row = fetch_json(config["url"], timeout=1.5)
+                source = config.get("source", "Binance")
+            else:
+                row = None
+                source = config.get("source", "Binance")
+                for base_url in BINANCE_SPOT_BASES:
+                    try:
+                        row = fetch_json(f"{base_url}/api/v3/ticker/24hr?symbol={symbol}", timeout=1.5)
+                        source = "Binance.US" if "binance.us" in base_url else "Binance"
+                        break
+                    except Exception:
+                        continue
+                if row is None:
+                    return None
+        except Exception:
+            return None
+
+        return quote_from_row(symbol, config, row, source)
+
+    with ThreadPoolExecutor(max_workers=max(min(len(missing_symbols), 6), 1)) as executor:
         futures = {
             executor.submit(fetch_binance_one, symbol, config)
-            for symbol, config in BINANCE_SYMBOLS.items()
+            for symbol, config in missing_symbols.items()
         }
         for future in as_completed(futures):
             try:
